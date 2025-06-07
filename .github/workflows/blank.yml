@@ -9,7 +9,6 @@ jobs:
     steps:
       - name: Checkout Repo
         uses: actions/checkout@v4
-
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v2
         with: 
@@ -17,16 +16,13 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
           aws-region: us-east-1
-
-      - name: Debug: Show Current Directory
-        run: pwd
-
-      - name: Debug: List Files in Workspace
-        run: ls -la ${{ github.workspace }}
-
+      - name: List Files
+        run: ls -R
+        working-directory: ${{ github.workspace }}
       - name: Deploy CloudFormation Stack
-        run: |
+        run: | 
           aws cloudformation deploy \
-            --stack-name inclassstack \
-            --template-file ${{ github.workspace }}/404AZStack.yaml \
-            --capabilities CAPABILITY_NAMED_IAM
+          --stack-name inclassstack \
+          --template-file 404AZStack.yaml \
+          --capabilities CAPABILITY_NAMED_IAM \
+          
