@@ -19,10 +19,10 @@ jobs:
       - name: List Files
         run: ls -R
         working-directory: ${{ github.workspace }}
+          
       - name: Deploy CloudFormation Stack
-        run: | 
+        run: |
           aws cloudformation deploy \
           --stack-name inclassstack \
-          --template-file 404AZStack.yaml \
-          --capabilities CAPABILITY_NAMED_IAM \
-          
+          --template-file ${{ github.workspace }}/404AZStack.yaml \
+          --capabilities CAPABILITY_NAMED_IAM    
