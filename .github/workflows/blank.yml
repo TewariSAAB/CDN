@@ -25,7 +25,7 @@ jobs:
         run: ls -la ${{ github.workspace }}
 
       - name: Deploy CloudFormation Stack
-        run: | 
+        run: |
           aws cloudformation deploy \
             --stack-name inclassstack \
             --template-file ${{ github.workspace }}/404AZStack.yaml \
