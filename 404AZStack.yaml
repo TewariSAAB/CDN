@@ -1,10 +1,5 @@
 AWSTemplateFormatVersion: 2010-09-09
-Description: Two VPCs with public/private subnets and peering
-
-Parameters:
-  KeyName:
-    Description: Name of an existing EC2 KeyPair
-    Type: AWS::EC2::KeyPair::KeyName
+Description: Two VPCs with public/private subnets, peering connection, and web servers
 
 Mappings:
   RegionMap:
@@ -109,7 +104,7 @@ Resources:
     Type: AWS::EC2::Instance
     Properties:
       InstanceType: t2.micro
-      KeyName: !Ref KeyName
+      KeyName: vockey
       ImageId: ami-0a5c3558529277641
       SubnetId: !Ref PublicSubnet1A
       SecurityGroupIds: [!Ref WebSG]
@@ -126,7 +121,7 @@ Resources:
     Type: AWS::EC2::Instance
     Properties:
       InstanceType: t2.micro
-      KeyName: !Ref KeyName
+      KeyName: vockey
       ImageId: ami-0a5c3558529277641
       SubnetId: !Ref PublicSubnet1B
       SecurityGroupIds: [!Ref WebSG]
@@ -171,7 +166,7 @@ Resources:
       VpcId: !Ref VPC1
       PeerVpcId: !Ref VPC2
 
-# Route to VPC2 from VPC1
+# Route from VPC1 to VPC2
   PeeringRoute1:
     Type: AWS::EC2::Route
     Properties:
