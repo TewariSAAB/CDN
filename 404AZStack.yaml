@@ -1,57 +1,95 @@
 AWSTemplateFormatVersion: 2010-09-09
-Description: Test Stack
+Description: Two VPCs with public/private subnets and peering
+
+Parameters:
+  KeyName:
+    Description: Name of an existing EC2 KeyPair
+    Type: AWS::EC2::KeyPair::KeyName
+
+Mappings:
+  RegionMap:
+    us-east-1:
+      AZ1: us-east-1a
+      AZ2: us-east-1b
 
 Resources:
+
+# --- VPC 1 ---
   VPC1:
     Type: AWS::EC2::VPC
     Properties:
       CidrBlock: 10.0.0.0/16
       EnableDnsSupport: true
       EnableDnsHostnames: true
-      Tags:
-        - Key: Name
-          Value: VPC1
-  # Subnet for Web Server (Public subnet in VPC1)
-  PublicSubnetVPC1:
+      Tags: [{ Key: Name, Value: VPC1 }]
+
+  InternetGateway1:
+    Type: AWS::EC2::InternetGateway
+
+  AttachGateway1:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref VPC1
+      InternetGatewayId: !Ref InternetGateway1
+
+# Public Subnets VPC1
+  PublicSubnet1A:
     Type: AWS::EC2::Subnet
     Properties:
       VpcId: !Ref VPC1
       CidrBlock: 10.0.1.0/24
+      AvailabilityZone: !FindInMap [RegionMap, !Ref "AWS::Region", AZ1]
       MapPublicIpOnLaunch: true
-      AvailabilityZone: !Select
-        - 0
-        - !GetAZs ''
-      Tags:
-        - Key: Name
-          Value: Public-Subnet-VPC1
-  # Internet Gateway for VPC1 (for web server)
-  InternetGateway:
-    Type: AWS::EC2::InternetGateway
-  AttachGateway:
-    Type: AWS::EC2::VPCGatewayAttachment
+      Tags: [{ Key: Name, Value: Public-1A }]
+
+  PublicSubnet1B:
+    Type: AWS::EC2::Subnet
     Properties:
       VpcId: !Ref VPC1
-      InternetGatewayId: !Ref InternetGateway
-  # Route Table for Public Subnet in VPC1
-  PublicRouteTableVPC1:
+      CidrBlock: 10.0.2.0/24
+      AvailabilityZone: !FindInMap [RegionMap, !Ref "AWS::Region", AZ2]
+      MapPublicIpOnLaunch: true
+      Tags: [{ Key: Name, Value: Public-1B }]
+
+# Private Subnet VPC1
+  PrivateSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC1
+      CidrBlock: 10.0.3.0/24
+      AvailabilityZone: !FindInMap [RegionMap, !Ref "AWS::Region", AZ1]
+      MapPublicIpOnLaunch: false
+      Tags: [{ Key: Name, Value: Private-1 }]
+
+# Route Table for Public Subnets
+  PublicRouteTable1:
     Type: AWS::EC2::RouteTable
     Properties:
       VpcId: !Ref VPC1
-  PublicRoute:
+
+  PublicRoute1:
     Type: AWS::EC2::Route
-    DependsOn: AttachGateway
+    DependsOn: AttachGateway1
     Properties:
-      RouteTableId: !Ref PublicRouteTableVPC1
+      RouteTableId: !Ref PublicRouteTable1
       DestinationCidrBlock: 0.0.0.0/0
-      GatewayId: !Ref InternetGateway
-  # Associate Public Route Table with Public Subnet
-  PublicRouteTableAssociation:
+      GatewayId: !Ref InternetGateway1
+
+# Associate Route Table with Public Subnets
+  RouteAssoc1A:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
-      SubnetId: !Ref PublicSubnetVPC1
-      RouteTableId: !Ref PublicRouteTableVPC1
-  # Security Group for Web Server in VPC1
-  WebServerSecurityGroup:
+      SubnetId: !Ref PublicSubnet1A
+      RouteTableId: !Ref PublicRouteTable1
+
+  RouteAssoc1B:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet1B
+      RouteTableId: !Ref PublicRouteTable1
+
+# Security Group for Web Servers
+  WebSG:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: Allow HTTP and SSH
@@ -65,24 +103,120 @@ Resources:
           FromPort: 22
           ToPort: 22
           CidrIp: 0.0.0.0/0
-  # EC2 Instance for Web Server in VPC1
-  WebServerInstance:
+
+# EC2 Web Servers in Public Subnets
+  WebServer1:
     Type: AWS::EC2::Instance
     Properties:
-      InstanceType: t3.small
+      InstanceType: t2.micro
+      KeyName: !Ref KeyName
       ImageId: ami-0a5c3558529277641
-      SubnetId: !Ref PublicSubnetVPC1
-      SecurityGroupIds:
-        - !Ref WebServerSecurityGroup
-      KeyName: vockey
+      SubnetId: !Ref PublicSubnet1A
+      SecurityGroupIds: [!Ref WebSG]
       UserData: !Base64 |
         #!/bin/bash
         yum update -y
-        yum install -y httpd php php-mysql
+        yum install -y httpd
         systemctl start httpd
         systemctl enable httpd
-        echo "<?php phpinfo(); ?>" > /var/www/html/index.php
+        echo "Hello from WebServer1" > /var/www/html/index.html
+      Tags: [{ Key: Name, Value: WebServer1 }]
+
+  WebServer2:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: t2.micro
+      KeyName: !Ref KeyName
+      ImageId: ami-0a5c3558529277641
+      SubnetId: !Ref PublicSubnet1B
+      SecurityGroupIds: [!Ref WebSG]
+      UserData: !Base64 |
+        #!/bin/bash
+        yum update -y
+        yum install -y httpd
+        systemctl start httpd
+        systemctl enable httpd
+        echo "Hello from WebServer2" > /var/www/html/index.html
+      Tags: [{ Key: Name, Value: WebServer2 }]
+
+# --- VPC 2 ---
+  VPC2:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.1.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags: [{ Key: Name, Value: VPC2 }]
+
+  PrivateSubnet2A:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC2
+      CidrBlock: 10.1.1.0/24
+      AvailabilityZone: !FindInMap [RegionMap, !Ref "AWS::Region", AZ1]
+      Tags: [{ Key: Name, Value: Private-2A }]
+
+  PrivateSubnet2B:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC2
+      CidrBlock: 10.1.2.0/24
+      AvailabilityZone: !FindInMap [RegionMap, !Ref "AWS::Region", AZ2]
+      Tags: [{ Key: Name, Value: Private-2B }]
+
+# --- VPC Peering ---
+  VPCPeeringConnection:
+    Type: AWS::EC2::VPCPeeringConnection
+    Properties:
+      VpcId: !Ref VPC1
+      PeerVpcId: !Ref VPC2
+
+# Route to VPC2 from VPC1
+  PeeringRoute1:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PublicRouteTable1
+      DestinationCidrBlock: 10.1.0.0/16
+      VpcPeeringConnectionId: !Ref VPCPeeringConnection
+
+# Route Table for Private Subnets in VPC2
+  PrivateRouteTable2:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC2
+
+  RouteAssoc2A:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnet2A
+      RouteTableId: !Ref PrivateRouteTable2
+
+  RouteAssoc2B:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnet2B
+      RouteTableId: !Ref PrivateRouteTable2
+
+  PeeringRoute2:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable2
+      DestinationCidrBlock: 10.0.0.0/16
+      VpcPeeringConnectionId: !Ref VPCPeeringConnection
+
 Outputs:
-  WebServerPublicIP:
-    Description: Public IP address of the web server instance
-    Value: !GetAtt WebServerInstance.PublicIp
+  VPC1Id:
+    Value: !Ref VPC1
+    Description: VPC 1 ID
+
+  VPC2Id:
+    Value: !Ref VPC2
+    Description: VPC 2 ID
+
+  WebServer1PublicIP:
+    Value: !GetAtt WebServer1.PublicIp
+    Description: Public IP of Web Server 1
+
+  WebServer2PublicIP:
+    Value: !GetAtt WebServer2.PublicIp
+    Description: Public IP of Web Server 2
